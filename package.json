@@ -1,13 +1,12 @@
 {
-  "name": "com.unity.sougou.vrkeyboard",
-  "displayName": "SougouVRKeyboard",
-  "version": "1.0.0",
+  "name": "com.unity.debug.srdebug",
+  "displayName": "StompyRobot",
+  "version": "1.11.0",
   "unity": "2019.4",
-  "description": "SougouVRKeyboard",
+  "description": "StompyRobot",
   "keywords": [
-    "vr",
-    "sougou",
-    "keyboard"
+    "debug",
+    "srdebug"
   ],
   "dependencies": {
     "com.unity.ugui": "1.0.0"

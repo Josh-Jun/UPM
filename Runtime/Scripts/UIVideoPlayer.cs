@@ -1,13 +1,6 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-using UnityEngine.Events;
 using UnityEngine.EventSystems;
-using UnityEngine.Serialization;
 using UnityEngine.UI;
-using UnityEngine.Video;
-using UnityEngine.Video.UI;
 
 namespace UnityEngine.Video.UI
 {
@@ -44,8 +37,10 @@ namespace UnityEngine.Video.UI
     public class UIVideoPlayer : MonoBehaviour
     {
         public VideoPlayer VideoPlayer;
+        public VideoPlayer TipVideoPlayer;
         private RawImage _videoDisplay;
         private RenderTexture movie;
+        private RenderTexture tip_movie;
 
         [Header("Options")] [SerializeField] float _keyVolumeDelta = 0.05f;
         [SerializeField] float _jumpDeltaTime = 5f;
@@ -91,12 +86,6 @@ namespace UnityEngine.Video.UI
         private float _controlsFade = 1f;
         private Material _playPauseMaterial;
         private Material _volumeMaterial;
-        private Material _subtitlesMaterial;
-        private Material _optionsMaterial;
-        private Material _audioSpectrumMaterial;
-        private float[] _spectrumSamples = new float[128];
-        private float[] _spectrumSamplesSmooth = new float[128];
-        private float _maxValue = 1f;
         private float _audioVolume = 1f;
 
         private float _audioFade = 0f;
@@ -107,12 +96,11 @@ namespace UnityEngine.Video.UI
         private readonly LazyShaderProperty _propMorph = new LazyShaderProperty("_Morph");
         private readonly LazyShaderProperty _propMute = new LazyShaderProperty("_Mute");
         private readonly LazyShaderProperty _propVolume = new LazyShaderProperty("_Volume");
-        private readonly LazyShaderProperty _propSpectrum = new LazyShaderProperty("_Spectrum");
-        private readonly LazyShaderProperty _propSpectrumRange = new LazyShaderProperty("_SpectrumRange");
 
         private void Awake()
         {
             movie = new RenderTexture(1920, 1080, 24);
+            tip_movie = new RenderTexture(1920, 1080, 24);
             _videoDisplay = _videoTouch.gameObject.GetComponent<RawImage>();
             _tipDisplay = _timelineTip.Find("HoverThumbnail").GetComponent<RawImage>();
         }
@@ -127,8 +115,26 @@ namespace UnityEngine.Video.UI
             VideoPlayer.prepareCompleted += OnPrepareCompleted;
             VideoPlayer.started += OnStarted;
             VideoPlayer.seekCompleted += OnSeekCompleted;
+            VideoPlayer.frameReady += OnFrameReady;
             VideoPlayer.errorReceived += OnErrorReceived;
 
+            TipVideoPlayer.source = VideoPlayer.source;
+            switch (TipVideoPlayer.source)
+            {
+                case VideoSource.Url:
+                    TipVideoPlayer.url = VideoPlayer.url;
+                    break;
+                case VideoSource.VideoClip:
+                    TipVideoPlayer.clip = VideoPlayer.clip;
+                    break;
+                default:
+                    break;
+            }
+            TipVideoPlayer.sendFrameReadyEvents = true;
+            TipVideoPlayer.renderMode = VideoPlayer.renderMode;
+            TipVideoPlayer.targetTexture = tip_movie;
+            TipVideoPlayer.prepareCompleted += OnTipPrepareCompleted;
+            
             SetupPlayPauseButton();
             SetupTimeBackForwardButtons();
             SetupVolumeButton();
@@ -278,6 +284,9 @@ namespace UnityEngine.Video.UI
                             hoverText.text = string.Format("{0:00}:{1:00}", (int)(time / 60), (int)(time % 60));
                         }
 
+                        TipVideoPlayer.time = time;
+                        TipVideoPlayer.Pause();
+
                         // Update seek segment when hovering over timeline
                         if (_segmentsSeek != null)
                         {
@@ -398,6 +407,26 @@ namespace UnityEngine.Video.UI
                 double t = (VideoPlayer.time / VideoPlayer.length);
                 _sliderTime.value = Mathf.Clamp01((float)t);
             }
+            
+            // Update buffered segments
+            if (_segmentsBuffered)
+            {
+                double t = ((double)VideoPlayer.frame / VideoPlayer.frameCount);
+                float[] ranges = new float[2];
+                ranges[1] = (float)t;
+                ranges[0] = 0;
+                _segmentsBuffered.Segments = ranges;
+            }
+
+            // Update progress segment
+            if (_segmentsProgress)
+            {
+                double t = (VideoPlayer.time / VideoPlayer.length);
+                float[] ranges = new float[2];
+                ranges[1] = (float)t;
+                ranges[0] = 0;
+                _segmentsProgress.Segments = ranges;
+            }
         }
 
         private bool isReady = true;
@@ -442,7 +471,16 @@ namespace UnityEngine.Video.UI
         public void OnPrepareCompleted(VideoPlayer player)
         {
             _videoDisplay.texture = player.targetTexture;
+        }
+        // 准备完成事件调用
+        public void OnTipPrepareCompleted(VideoPlayer player)
+        {
             _tipDisplay.texture = player.targetTexture;
+        }
+
+        private void OnFrameReady(VideoPlayer player, long frameidx)
+        {
+            
         }
 
         // 播放完成或者循环完成事件
